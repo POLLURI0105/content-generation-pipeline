@@ -1,0 +1,82 @@
+[
+  {
+    "id": 1,
+    "title": "ChatGPT Broke the Internet",
+    "topic": "ChatGPT hits 100 million users in 60 days — the fastest product in history",
+    "hook": "100 million users in 60 days. No app in history has ever grown this fast.",
+    "style": "MrBeast-style hype, shocking stat open, mind-blown payoff",
+    "tags": ["chatgpt", "openai", "viral", "ai-history"],
+    "series": "Spark of AI — AI History Series",
+    "duration": "60 seconds"
+  },
+  {
+    "id": 2,
+    "title": "The Day AI Was Born",
+    "topic": "The 1956 Dartmouth Conference — where the term Artificial Intelligence was coined",
+    "hook": "In the summer of 1956, a group of scientists made a bet that would change everything.",
+    "style": "MrBeast-style hype, origin story, dramatic reveal",
+    "tags": ["dartmouth", "ai-history", "1956", "origin"],
+    "series": "Spark of AI — AI History Series",
+    "duration": "60 seconds"
+  },
+  {
+    "id": 3,
+    "title": "AI Almost Died Twice",
+    "topic": "The AI Winters — two periods where AI funding collapsed and the field nearly died",
+    "hook": "AI almost died. Not once. TWICE. And nobody talks about it.",
+    "style": "MrBeast-style hype, tension build, comeback payoff",
+    "tags": ["ai-winter", "ai-history", "funding", "collapse"],
+    "series": "Spark of AI — AI History Series",
+    "duration": "60 seconds"
+  },
+  {
+    "id": 4,
+    "title": "The Image That Changed AI Forever",
+    "topic": "AlexNet 2012 — when deep learning actually worked for the first time",
+    "hook": "In 2012, one neural network looked at a million images and changed science forever.",
+    "style": "MrBeast-style hype, before/after reveal, breakthrough moment",
+    "tags": ["alexnet", "deep-learning", "2012", "imagenet"],
+    "series": "Spark of AI — AI History Series",
+    "duration": "60 seconds"
+  },
+  {
+    "id": 5,
+    "title": "The Paper That Runs ChatGPT",
+    "topic": "The Transformer paper 2017 — Attention Is All You Need",
+    "hook": "8 Google engineers wrote a paper in 2017. It now powers almost every AI you use.",
+    "style": "MrBeast-style hype, hidden gem reveal, massive impact payoff",
+    "tags": ["transformer", "attention", "2017", "google"],
+    "series": "Spark of AI — AI History Series",
+    "duration": "60 seconds"
+  },
+  {
+    "id": 6,
+    "title": "The AI That Could Write Like a Human",
+    "topic": "GPT-3 (2020) — the moment AI started writing like a human and shocked the internet",
+    "hook": "In 2020, OpenAI released an AI so good at writing, people thought it was human.",
+    "style": "MrBeast-style hype, demo reveal, jaw-drop moment",
+    "tags": ["gpt3", "openai", "2020", "language-model"],
+    "series": "Spark of AI — AI History Series",
+    "duration": "60 seconds"
+  },
+  {
+    "id": 7,
+    "title": "The Day AI Learned to Paint",
+    "topic": "DALL-E and Stable Diffusion (2022) — when AI started generating images and artists panicked",
+    "hook": "In 2022, AI taught itself to paint. Artists panicked. The internet went insane.",
+    "style": "MrBeast-style hype, visual reveal, controversy payoff",
+    "tags": ["dalle", "stable-diffusion", "2022", "image-generation"],
+    "series": "Spark of AI — AI History Series",
+    "duration": "60 seconds"
+  },
+  {
+    "id": 8,
+    "title": "Google vs OpenAI: The AI Arms Race",
+    "topic": "The 2023 AI race — Bard vs ChatGPT, the biggest tech battle in history",
+    "hook": "Two of the biggest companies on Earth went to war over AI. This is how it started.",
+    "style": "MrBeast-style hype, rivalry build, cliffhanger ending",
+    "tags": ["google", "openai", "bard", "chatgpt", "2023", "arms-race"],
+    "series": "Spark of AI — AI History Series",
+    "duration": "60 seconds"
+  }
+]
