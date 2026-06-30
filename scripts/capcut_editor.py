@@ -4,6 +4,16 @@ import json
 # CapCut does not have a public API — this script assembles a project manifest
 # that describes the video edit, which can be imported into CapCut or used with ffmpeg.
 
+# Artifact paths (download-artifact@v4 puts each artifact in its own subdirectory)
+SCRIPTS_PATH     = "artifacts/generated-scripts/scripts.json"
+VOICE_PATH       = "artifacts/generated-voice/voice_metadata.json"
+VIDEO_PATH       = "artifacts/generated-videos/kling_videos_metadata.json"
+SFX_PATH         = "artifacts/sfx-captions/elevenlabs_sfx_metadata.json"
+CAPTIONS_PATH    = "artifacts/sfx-captions/captions_metadata.json"
+THUMBNAILS_PATH  = "artifacts/thumbnails/ideogram_thumbnails_metadata.json"
+PEXELS_PATH      = "artifacts/stock-footage/pexels_metadata.json"
+
+
 def build_edit_manifest(script_id, title, voice_file, video_file, broll_files, sfx_file, caption_file, thumbnail_file):
     return {
         "project_name": f"spark_of_ai_{script_id}_{title.lower().replace(' ', '_')}",
@@ -35,16 +45,16 @@ def build_edit_manifest(script_id, title, voice_file, video_file, broll_files, s
 def assemble_with_ffmpeg(manifest, output_path):
     """Fallback: use ffmpeg to assemble video if CapCut API unavailable."""
     import subprocess
-    
+
     voice = manifest["tracks"]["audio"]["voiceover"]
     video = manifest["tracks"]["video"]["primary"]
-    
+
     if not voice or not video:
         print(f"⚠️  Missing voice or video for {manifest['project_name']} — skipping assembly")
         return None
-    
+
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    
+
     cmd = [
         "ffmpeg", "-y",
         "-i", video,
@@ -55,7 +65,7 @@ def assemble_with_ffmpeg(manifest, output_path):
         "-vf", "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2",
         output_path
     ]
-    
+
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode == 0:
         print(f"✅ Video assembled: {output_path}")
@@ -64,32 +74,36 @@ def assemble_with_ffmpeg(manifest, output_path):
         print(f"❌ ffmpeg failed: {result.stderr}")
         return None
 
-def main():
-    with open("output/scripts.json") as f:
-        scripts = json.load(f)
-    
-    def load_meta(path, key="file"):
-        try:
-            with open(path) as f:
-                return {str(item.get("id")): item.get(key) for item in json.load(f)}
-        except:
-            return {}
-    
-    voice_map = load_meta("output/voice_metadata.json")
-    video_map = load_meta("output/kling_videos_metadata.json")
-    sfx_map = load_meta("output/elevenlabs_sfx_metadata.json")
-    caption_map = load_meta("output/captions_metadata.json")
-    thumb_map = load_meta("output/ideogram_thumbnails_metadata.json")
-    
+def load_meta(path, key="file"):
     try:
-        with open("output/pexels_metadata.json") as f:
+        with open(path) as f:
+            return {str(item.get("id")): item.get(key) for item in json.load(f)}
+    except Exception as e:
+        print(f"⚠️  Could not load {path}: {e}")
+        return {}
+
+def main():
+    print(f"📂 Looking for scripts at: {SCRIPTS_PATH}")
+    with open(SCRIPTS_PATH) as f:
+        scripts = json.load(f)
+    print(f"✅ Loaded {len(scripts)} scripts")
+
+    voice_map   = load_meta(VOICE_PATH)
+    video_map   = load_meta(VIDEO_PATH)
+    sfx_map     = load_meta(SFX_PATH)
+    caption_map = load_meta(CAPTIONS_PATH)
+    thumb_map   = load_meta(THUMBNAILS_PATH)
+
+    try:
+        with open(PEXELS_PATH) as f:
             pexels_data = {str(item["id"]): [v["file"] for v in item.get("videos", [])] for item in json.load(f)}
-    except:
+    except Exception as e:
+        print(f"⚠️  Could not load pexels data: {e}")
         pexels_data = {}
-    
+
     os.makedirs("output/final_videos", exist_ok=True)
     final_metadata = []
-    
+
     for s in scripts:
         sid = str(s["id"])
         manifest = build_edit_manifest(
@@ -99,14 +113,14 @@ def main():
             sfx_map.get(sid), caption_map.get(sid),
             thumb_map.get(sid)
         )
-        
+
         manifest_file = f"output/final_videos/manifest_script_{s['id']}.json"
         with open(manifest_file, "w") as f:
             json.dump(manifest, f, indent=2)
-        
+
         output_path = f"output/final_videos/spark_of_ai_{s['id']}.mp4"
         assembled = assemble_with_ffmpeg(manifest, output_path)
-        
+
         final_metadata.append({
             "id": s["id"],
             "title": s["title"],
@@ -115,7 +129,7 @@ def main():
             "thumbnail": thumb_map.get(sid),
             "status": "assembled" if assembled else "manifest_only"
         })
-    
+
     with open("output/final_videos/final_metadata.json", "w") as f:
         json.dump(final_metadata, f, indent=2)
     print("✅ Final edit manifests and videos saved")
