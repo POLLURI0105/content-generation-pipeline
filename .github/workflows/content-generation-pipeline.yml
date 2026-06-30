@@ -24,8 +24,9 @@ jobs:
         id: load
         run: |
           if [ -f "ideas/weekly_ideas.json" ]; then
-            IDEAS=$(cat ideas/weekly_ideas.json)
-            echo "ideas=$IDEAS" >> $GITHUB_OUTPUT
+          echo "ideas<<EOF" >> $GITHUB_OUTPUT
+            cat ideas/weekly_ideas.json >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
           else
             echo "Error: weekly_ideas.json not found"
             exit 1
