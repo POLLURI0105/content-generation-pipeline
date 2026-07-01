@@ -1,12 +1,15 @@
 import os
 import json
-import pickle
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
 YOUTUBE_CREDENTIALS = os.environ["YOUTUBE_CREDENTIALS"]
 CHANNEL_ID = os.environ.get("YOUTUBE_CHANNEL_ID", "")
+
+# After download-artifact@v3 with name: final-content, path: output/
+# files land at output/<filename> (NOT output/final_videos/<filename>)
+FINAL_METADATA_PATH = "output/final_metadata.json"
 
 DESCRIPTIONS = {
     1: "ChatGPT hit 100 million users in just 60 days 🤯 That's faster than ANY app in history. Here's why this changed everything.\n\n#AIHistory #ChatGPT #SparkOfAI #Shorts",
@@ -23,7 +26,7 @@ def upload_video(script_id, title, video_file, thumbnail_file):
     creds_data = json.loads(YOUTUBE_CREDENTIALS)
     creds = Credentials.from_authorized_user_info(creds_data)
     youtube = build("youtube", "v3", credentials=creds)
-    
+
     body = {
         "snippet": {
             "title": f"{title} #Shorts",
@@ -37,44 +40,68 @@ def upload_video(script_id, title, video_file, thumbnail_file):
             "selfDeclaredMadeForKids": False
         }
     }
-    
+
     media = MediaFileUpload(video_file, mimetype="video/mp4", resumable=True, chunksize=1024*1024)
-    
+
     request = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
     response = None
     while response is None:
         status, response = request.next_chunk()
         if status:
             print(f"⏳ Uploading script {script_id}: {int(status.progress() * 100)}%")
-    
+
     video_id = response.get("id")
     print(f"✅ YouTube upload complete: https://youtube.com/shorts/{video_id}")
-    
+
     if thumbnail_file and os.path.exists(thumbnail_file):
         youtube.thumbnails().set(videoId=video_id, media_body=MediaFileUpload(thumbnail_file)).execute()
         print(f"✅ Thumbnail set for video {video_id}")
-    
+
     return {"id": script_id, "youtube_id": video_id, "url": f"https://youtube.com/shorts/{video_id}", "status": "uploaded"}
 
 def main():
-    with open("output/final_videos/final_metadata.json") as f:
+    # Load final metadata
+    if not os.path.exists(FINAL_METADATA_PATH):
+        print(f"❌ Final metadata not found at {FINAL_METADATA_PATH}")
+        print("Files in output/:")
+        for f in os.listdir("output") if os.path.exists("output") else []:
+            print(f"  output/{f}")
+        exit(1)
+
+    with open(FINAL_METADATA_PATH) as f:
         finals = json.load(f)
-    
-    with open("output/scripts.json") as f:
-        scripts = {str(s["id"]): s for s in json.load(f)}
-    
+
+    print(f"✅ Loaded {len(finals)} video entries from final metadata")
+
     results = []
+    uploaded = 0
     for item in finals:
-        if item.get("final_video") and os.path.exists(item["final_video"]):
-            result = upload_video(item["id"], item["title"], item["final_video"], item.get("thumbnail"))
-            results.append(result)
+        video_file = item.get("final_video")
+
+        # The video path in metadata might reference the old build path.
+        # Try the filename directly under output/ as well.
+        if video_file and not os.path.exists(video_file):
+            basename = os.path.basename(video_file)
+            alt_path = os.path.join("output", basename)
+            if os.path.exists(alt_path):
+                video_file = alt_path
+
+        if video_file and os.path.exists(video_file):
+            print(f"📤 Uploading script {item['id']}: {item['title']}")
+            try:
+                result = upload_video(item["id"], item["title"], video_file, item.get("thumbnail"))
+                results.append(result)
+                uploaded += 1
+            except Exception as e:
+                print(f"❌ Upload failed for script {item['id']}: {e}")
+                results.append({"id": item["id"], "status": "error", "error": str(e)})
         else:
-            print(f"⚠️  No final video for script {item['id']} — skipping")
-            results.append({"id": item["id"], "status": "skipped"})
-    
+            print(f"⚠️  No assembled video for script {item['id']} — skipping")
+            results.append({"id": item["id"], "status": "skipped", "reason": "no_video_file"})
+
     with open("output/youtube_upload_results.json", "w") as f:
         json.dump(results, f, indent=2)
-    print("✅ YouTube upload results saved")
+    print(f"✅ Done. {uploaded}/{len(finals)} videos uploaded to YouTube.")
 
 if __name__ == "__main__":
     main()
