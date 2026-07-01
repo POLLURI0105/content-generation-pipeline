@@ -4,7 +4,7 @@ import json
 # CapCut does not have a public API — this script assembles a project manifest
 # that describes the video edit, which can be imported into CapCut or used with ffmpeg.
 
-# Artifact paths (download-artifact@v4 puts each artifact in its own subdirectory)
+# Artifact paths (download-artifact@v3 with no name, path: artifacts/)
 SCRIPTS_PATH     = "artifacts/generated-scripts/scripts.json"
 VOICE_PATH       = "artifacts/generated-voice/voice_metadata.json"
 VIDEO_PATH       = "artifacts/generated-videos/kling_videos_metadata.json"
@@ -12,7 +12,6 @@ SFX_PATH         = "artifacts/sfx-captions/elevenlabs_sfx_metadata.json"
 CAPTIONS_PATH    = "artifacts/sfx-captions/captions_metadata.json"
 THUMBNAILS_PATH  = "artifacts/thumbnails/ideogram_thumbnails_metadata.json"
 PEXELS_PATH      = "artifacts/stock-footage/pexels_metadata.json"
-
 
 def build_edit_manifest(script_id, title, voice_file, video_file, broll_files, sfx_file, caption_file, thumbnail_file):
     return {
@@ -53,6 +52,14 @@ def assemble_with_ffmpeg(manifest, output_path):
         print(f"⚠️  Missing voice or video for {manifest['project_name']} — skipping assembly")
         return None
 
+    if not os.path.exists(voice):
+        print(f"⚠️  Voice file not found: {voice} — skipping assembly")
+        return None
+
+    if not os.path.exists(video):
+        print(f"⚠️  Video file not found: {video} — skipping assembly")
+        return None
+
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
     cmd = [
@@ -71,34 +78,44 @@ def assemble_with_ffmpeg(manifest, output_path):
         print(f"✅ Video assembled: {output_path}")
         return output_path
     else:
-        print(f"❌ ffmpeg failed: {result.stderr}")
+        print(f"❌ ffmpeg failed: {result.stderr[-500:]}")
         return None
 
-def load_meta(path, key="file"):
-    try:
-        with open(path) as f:
-            return {str(item.get("id")): item.get(key) for item in json.load(f)}
-    except Exception as e:
-        print(f"⚠️  Could not load {path}: {e}")
-        return {}
-
 def main():
-    print(f"📂 Looking for scripts at: {SCRIPTS_PATH}")
-    with open(SCRIPTS_PATH) as f:
-        scripts = json.load(f)
-    print(f"✅ Loaded {len(scripts)} scripts")
+    try:
+        with open(SCRIPTS_PATH) as f:
+            scripts = json.load(f)
+        print(f"✅ Loaded {len(scripts)} scripts from {SCRIPTS_PATH}")
+    except FileNotFoundError:
+        print(f"❌ Scripts file not found at {SCRIPTS_PATH}")
+        print("Available files in artifacts/:")
+        for root, dirs, files in os.walk("artifacts"):
+            for fname in files:
+                print(f"  {os.path.join(root, fname)}")
+        exit(1)
 
-    voice_map   = load_meta(VOICE_PATH)
-    video_map   = load_meta(VIDEO_PATH)
-    sfx_map     = load_meta(SFX_PATH)
-    caption_map = load_meta(CAPTIONS_PATH)
-    thumb_map   = load_meta(THUMBNAILS_PATH)
+    def load_meta(path, key="file"):
+        try:
+            with open(path) as f:
+                data = json.load(f)
+            print(f"✅ Loaded metadata from {path}")
+            return {str(item.get("id")): item.get(key) for item in data}
+        except Exception as e:
+            print(f"⚠️  Could not load {path}: {e}")
+            return {}
+
+    voice_map    = load_meta(VOICE_PATH)
+    video_map    = load_meta(VIDEO_PATH)
+    sfx_map      = load_meta(SFX_PATH)
+    caption_map  = load_meta(CAPTIONS_PATH)
+    thumb_map    = load_meta(THUMBNAILS_PATH)
 
     try:
         with open(PEXELS_PATH) as f:
             pexels_data = {str(item["id"]): [v["file"] for v in item.get("videos", [])] for item in json.load(f)}
+        print(f"✅ Loaded pexels metadata from {PEXELS_PATH}")
     except Exception as e:
-        print(f"⚠️  Could not load pexels data: {e}")
+        print(f"⚠️  Could not load pexels metadata: {e}")
         pexels_data = {}
 
     os.makedirs("output/final_videos", exist_ok=True)
@@ -132,7 +149,7 @@ def main():
 
     with open("output/final_videos/final_metadata.json", "w") as f:
         json.dump(final_metadata, f, indent=2)
-    print("✅ Final edit manifests and videos saved")
+    print(f"✅ Final edit manifests saved. {sum(1 for m in final_metadata if m['status'] == 'assembled')} videos assembled.")
 
 if __name__ == "__main__":
     main()
