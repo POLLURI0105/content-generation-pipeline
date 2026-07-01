@@ -1,36 +1,80 @@
 import os
 import json
+import sys
+
+print("=== YouTube Uploader Starting ===")
+print(f"Python: {sys.version}")
+
+# Check credentials before importing heavy deps
+YOUTUBE_CREDENTIALS = os.environ.get("YOUTUBE_CREDENTIALS", "")
+print(f"YOUTUBE_CREDENTIALS set: {bool(YOUTUBE_CREDENTIALS)} (length: {len(YOUTUBE_CREDENTIALS)})")
+
+if not YOUTUBE_CREDENTIALS:
+    print("ERROR: YOUTUBE_CREDENTIALS secret is empty or not set.")
+    print("Please add a valid YouTube OAuth2 credentials JSON to the YOUTUBE_CREDENTIALS GitHub secret.")
+    sys.exit(1)
+
+try:
+    creds_data = json.loads(YOUTUBE_CREDENTIALS)
+    print(f"Credentials parsed OK. Keys: {list(creds_data.keys())}")
+except json.JSONDecodeError as e:
+    print(f"ERROR: YOUTUBE_CREDENTIALS is not valid JSON: {e}")
+    sys.exit(1)
+
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
-YOUTUBE_CREDENTIALS = os.environ["YOUTUBE_CREDENTIALS"]
 CHANNEL_ID = os.environ.get("YOUTUBE_CHANNEL_ID", "")
 
-# After download-artifact@v3 with name: final-content, path: output/
-# files land at output/<filename> (NOT output/final_videos/<filename>)
+# Metadata written by capcut_editor.py to output/final_videos/, artifact downloaded to output/
 FINAL_METADATA_PATH = "output/final_metadata.json"
 
+print(f"\nChecking output directory...")
+if os.path.exists("output"):
+    files = []
+    for root, dirs, fnames in os.walk("output"):
+        for f in fnames:
+            fpath = os.path.join(root, f)
+            files.append(f"{fpath} ({os.path.getsize(fpath)//1024} KB)")
+    print(f"Files in output/: {len(files)}")
+    for f in files[:20]:
+        print(f"  {f}")
+else:
+    print("ERROR: output/ directory does not exist!")
+    sys.exit(1)
+
+if not os.path.exists(FINAL_METADATA_PATH):
+    print(f"ERROR: {FINAL_METADATA_PATH} not found")
+    sys.exit(1)
+
+with open(FINAL_METADATA_PATH) as f:
+    finals = json.load(f)
+
+print(f"\nLoaded {len(finals)} video entries from final_metadata.json")
+
 DESCRIPTIONS = {
-    1: "ChatGPT hit 100 million users in just 60 days 🤯 That's faster than ANY app in history. Here's why this changed everything.\n\n#AIHistory #ChatGPT #SparkOfAI #Shorts",
-    2: "It all started in 1956. A group of scientists made a bet that would birth Artificial Intelligence. Nobody talks about this meeting. 🧠\n\n#AIHistory #Dartmouth #SparkOfAI #Shorts",
-    3: "AI almost died. TWICE. Billions in funding vanished. Labs shut down. Here's the story nobody tells. 🥶\n\n#AIHistory #AIWinter #SparkOfAI #Shorts",
-    4: "In 2012, one neural network looked at a million images and deep learning finally WORKED. This changed science forever. ⚡\n\n#AIHistory #AlexNet #DeepLearning #SparkOfAI #Shorts",
-    5: "8 Google engineers wrote a paper in 2017. It now powers ChatGPT, Gemini, and almost every AI you use. 📄\n\n#AIHistory #Transformer #SparkOfAI #Shorts",
-    6: "In 2020, OpenAI released an AI so good at writing, people thought it was human. GPT-3 changed everything. ✍️\n\n#AIHistory #GPT3 #SparkOfAI #Shorts",
-    7: "In 2022, AI taught itself to paint. Artists panicked. The internet went insane. 🎨\n\n#AIHistory #DALLE #StableDiffusion #SparkOfAI #Shorts",
-    8: "Two of the biggest companies on Earth went to war over AI. Here's how the arms race started. ⚔️\n\n#AIHistory #Google #OpenAI #SparkOfAI #Shorts"
+    1: "ChatGPT hit 100 million users in just 60 days That's faster than ANY app in history. Here's why this changed everything.\n\n#AIHistory #ChatGPT #SparkOfAI #Shorts",
+    2: "It all started in 1956. A group of scientists made a bet that would birth Artificial Intelligence. Nobody talks about this meeting.\n\n#AIHistory #Dartmouth #SparkOfAI #Shorts",
+    3: "AI almost died. TWICE. Billions in funding vanished. Labs shut down. Here's the story nobody tells.\n\n#AIHistory #AIWinter #SparkOfAI #Shorts",
+    4: "A team of 8 researchers changed EVERYTHING in 2017 with one paper: Attention Is All You Need.\n\n#AIHistory #Transformers #SparkOfAI #Shorts",
+    5: "GPT-1 had 117M parameters. GPT-4 has over 1 TRILLION. Here's how we got here.\n\n#AIHistory #GPT #SparkOfAI #Shorts",
+    6: "AI can now write better than most humans. Here's the moment that proved it.\n\n#AIHistory #LLM #SparkOfAI #Shorts",
+    7: "DALL-E changed art forever. The story behind AI's first viral image generator.\n\n#AIHistory #DALLE #SparkOfAI #Shorts",
+    8: "Google vs OpenAI. The greatest AI race of our generation. Here's who's really winning.\n\n#AIHistory #Google #OpenAI #SparkOfAI #Shorts",
 }
 
-def upload_video(script_id, title, video_file, thumbnail_file):
-    creds_data = json.loads(YOUTUBE_CREDENTIALS)
+def upload_video(script_id, title, video_file):
+    print(f"\nUploading script {script_id}: {title}")
+    print(f"  File: {video_file} ({os.path.getsize(video_file)//1024} KB)")
+    
     creds = Credentials.from_authorized_user_info(creds_data)
     youtube = build("youtube", "v3", credentials=creds)
 
     body = {
         "snippet": {
             "title": f"{title} #Shorts",
-            "description": DESCRIPTIONS.get(script_id, f"Spark of AI — {title}\n\n#SparkOfAI #AIHistory #Shorts"),
+            "description": DESCRIPTIONS.get(script_id, f"Spark of AI -- {title}\n\n#SparkOfAI #AIHistory #Shorts"),
             "tags": ["AI", "AIHistory", "SparkOfAI", "Shorts", "ArtificialIntelligence"],
             "categoryId": "28",
             "defaultLanguage": "en"
@@ -42,66 +86,62 @@ def upload_video(script_id, title, video_file, thumbnail_file):
     }
 
     media = MediaFileUpload(video_file, mimetype="video/mp4", resumable=True, chunksize=1024*1024)
-
     request = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
     response = None
     while response is None:
         status, response = request.next_chunk()
         if status:
-            print(f"⏳ Uploading script {script_id}: {int(status.progress() * 100)}%")
-
-    video_id = response.get("id")
-    print(f"✅ YouTube upload complete: https://youtube.com/shorts/{video_id}")
-
-    if thumbnail_file and os.path.exists(thumbnail_file):
-        youtube.thumbnails().set(videoId=video_id, media_body=MediaFileUpload(thumbnail_file)).execute()
-        print(f"✅ Thumbnail set for video {video_id}")
-
-    return {"id": script_id, "youtube_id": video_id, "url": f"https://youtube.com/shorts/{video_id}", "status": "uploaded"}
+            print(f"  Upload progress: {int(status.progress() * 100)}%")
+    
+    video_id = response.get("id", "unknown")
+    print(f"  Uploaded: https://youtube.com/watch?v={video_id}")
+    return video_id
 
 def main():
-    # Load final metadata
-    if not os.path.exists(FINAL_METADATA_PATH):
-        print(f"❌ Final metadata not found at {FINAL_METADATA_PATH}")
-        print("Files in output/:")
-        for f in os.listdir("output") if os.path.exists("output") else []:
-            print(f"  output/{f}")
-        exit(1)
-
-    with open(FINAL_METADATA_PATH) as f:
-        finals = json.load(f)
-
-    print(f"✅ Loaded {len(finals)} video entries from final metadata")
-
     results = []
     uploaded = 0
+
     for item in finals:
+        script_id = item.get("id")
+        title = item.get("title", f"Script {script_id}")
         video_file = item.get("final_video")
+        status = item.get("status")
 
-        # The video path in metadata might reference the old build path.
-        # Try the filename directly under output/ as well.
-        if video_file and not os.path.exists(video_file):
+        print(f"\nScript {script_id}: status={status}, file={video_file}")
+
+        if not video_file:
+            print(f"  Skipping — no video file in metadata")
+            results.append({"id": script_id, "status": "skipped"})
+            continue
+
+        # Resolve path: artifact downloaded to output/, capcut writes output/final_videos/...
+        if not os.path.exists(video_file):
             basename = os.path.basename(video_file)
-            alt_path = os.path.join("output", basename)
-            if os.path.exists(alt_path):
-                video_file = alt_path
+            for candidate in [os.path.join("output", basename), basename]:
+                if os.path.exists(candidate):
+                    video_file = candidate
+                    break
 
-        if video_file and os.path.exists(video_file):
-            print(f"📤 Uploading script {item['id']}: {item['title']}")
-            try:
-                result = upload_video(item["id"], item["title"], video_file, item.get("thumbnail"))
-                results.append(result)
-                uploaded += 1
-            except Exception as e:
-                print(f"❌ Upload failed for script {item['id']}: {e}")
-                results.append({"id": item["id"], "status": "error", "error": str(e)})
-        else:
-            print(f"⚠️  No assembled video for script {item['id']} — skipping")
-            results.append({"id": item["id"], "status": "skipped", "reason": "no_video_file"})
+        if not os.path.exists(video_file):
+            print(f"  Skipping — file not found: {video_file}")
+            results.append({"id": script_id, "status": "missing"})
+            continue
 
-    with open("output/youtube_upload_results.json", "w") as f:
+        try:
+            vid_id = upload_video(script_id, title, video_file)
+            results.append({"id": script_id, "title": title, "youtube_id": vid_id, "status": "uploaded"})
+            uploaded += 1
+        except Exception as e:
+            print(f"  Upload FAILED: {e}")
+            results.append({"id": script_id, "status": "failed", "error": str(e)})
+
+    print(f"\n=== Done: {uploaded}/{len(finals)} videos uploaded to YouTube ===")
+    for r in results:
+        print(f"  Script {r['id']}: {r['status']} {r.get('youtube_id','')}")
+
+    os.makedirs("output", exist_ok=True)
+    with open("output/youtube_results.json", "w") as f:
         json.dump(results, f, indent=2)
-    print(f"✅ Done. {uploaded}/{len(finals)} videos uploaded to YouTube.")
 
 if __name__ == "__main__":
     main()
