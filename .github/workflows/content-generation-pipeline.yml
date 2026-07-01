@@ -264,7 +264,9 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install dependencies
-        run: pip install requests python-dotenv moviepy
+        run: |
+          sudo apt-get install -y ffmpeg
+          pip install requests python-dotenv
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -312,7 +314,7 @@ jobs:
           receiver_email = os.getenv('APPROVAL_EMAIL')
           run_url = f\"{os.getenv('GITHUB_SERVER_URL')}/{os.getenv('GITHUB_REPOSITORY')}/actions/runs/{os.getenv('GITHUB_RUN_ID')}\"
 
-          subject = '🎬 Spark of AI Pipeline - Approval Required'
+          subject = 'ð¬ Spark of AI Pipeline - Approval Required'
           body = f'<html><body><h2>Content ready for deployment!</h2><p><a href=\"{run_url}\">Review and Approve here</a></p></body></html>'
 
           try:
