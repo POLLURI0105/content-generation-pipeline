@@ -1,17 +1,14 @@
 import os
 import json
 
-# CapCut does not have a public API — this script assembles a project manifest
-# that describes the video edit, which can be imported into CapCut or used with ffmpeg.
-
-# Artifact paths (download-artifact@v3 with no name, path: artifacts/)
-SCRIPTS_PATH     = "artifacts/generated-scripts/scripts.json"
-VOICE_PATH       = "artifacts/generated-voice/voice_metadata.json"
-VIDEO_PATH       = "artifacts/generated-videos/kling_videos_metadata.json"
-SFX_PATH         = "artifacts/sfx-captions/elevenlabs_sfx_metadata.json"
-CAPTIONS_PATH    = "artifacts/sfx-captions/captions_metadata.json"
-THUMBNAILS_PATH  = "artifacts/thumbnails/ideogram_thumbnails_metadata.json"
-PEXELS_PATH      = "artifacts/stock-footage/pexels_metadata.json"
+# Paths in output/ — each artifact downloaded individually to output/ in the final-editing job
+SCRIPTS_PATH     = "output/scripts.json"
+VOICE_PATH       = "output/voice_metadata.json"
+VIDEO_PATH       = "output/kling_videos_metadata.json"
+SFX_PATH         = "output/elevenlabs_sfx_metadata.json"
+CAPTIONS_PATH    = "output/captions_metadata.json"
+THUMBNAILS_PATH  = "output/ideogram_thumbnails_metadata.json"
+PEXELS_PATH      = "output/pexels_metadata.json"
 
 def build_edit_manifest(script_id, title, voice_file, video_file, broll_files, sfx_file, caption_file, thumbnail_file):
     return {
@@ -42,22 +39,22 @@ def build_edit_manifest(script_id, title, voice_file, video_file, broll_files, s
     }
 
 def assemble_with_ffmpeg(manifest, output_path):
-    """Fallback: use ffmpeg to assemble video if CapCut API unavailable."""
+    """Use ffmpeg to assemble video from voice + video clip."""
     import subprocess
 
     voice = manifest["tracks"]["audio"]["voiceover"]
     video = manifest["tracks"]["video"]["primary"]
 
     if not voice or not video:
-        print(f"⚠️  Missing voice or video for {manifest['project_name']} — skipping assembly")
+        print(f"⚠️  Missing voice or video for {manifest['project_name']} — skipping")
         return None
 
     if not os.path.exists(voice):
-        print(f"⚠️  Voice file not found: {voice} — skipping assembly")
+        print(f"⚠️  Voice file not found: {voice} — skipping")
         return None
 
     if not os.path.exists(video):
-        print(f"⚠️  Video file not found: {video} — skipping assembly")
+        print(f"⚠️  Video file not found: {video} — skipping")
         return None
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -78,28 +75,31 @@ def assemble_with_ffmpeg(manifest, output_path):
         print(f"✅ Video assembled: {output_path}")
         return output_path
     else:
-        print(f"❌ ffmpeg failed: {result.stderr[-500:]}")
+        print(f"❌ ffmpeg failed: {result.stderr[-300:]}")
         return None
 
 def main():
+    print("Files available in output/:")
+    for root, dirs, files in os.walk("output"):
+        for fname in files:
+            print(f"  {os.path.join(root, fname)}")
+    print()
+
     try:
         with open(SCRIPTS_PATH) as f:
             scripts = json.load(f)
-        print(f"✅ Loaded {len(scripts)} scripts from {SCRIPTS_PATH}")
+        print(f"✅ Loaded {len(scripts)} scripts")
     except FileNotFoundError:
-        print(f"❌ Scripts file not found at {SCRIPTS_PATH}")
-        print("Available files in artifacts/:")
-        for root, dirs, files in os.walk("artifacts"):
-            for fname in files:
-                print(f"  {os.path.join(root, fname)}")
+        print(f"❌ Scripts not found at {SCRIPTS_PATH}")
         exit(1)
 
     def load_meta(path, key="file"):
         try:
             with open(path) as f:
                 data = json.load(f)
-            print(f"✅ Loaded metadata from {path}")
-            return {str(item.get("id")): item.get(key) for item in data}
+            result = {str(item.get("id")): item.get(key) for item in data}
+            print(f"✅ Loaded {path} ({len(result)} entries)")
+            return result
         except Exception as e:
             print(f"⚠️  Could not load {path}: {e}")
             return {}
@@ -113,13 +113,14 @@ def main():
     try:
         with open(PEXELS_PATH) as f:
             pexels_data = {str(item["id"]): [v["file"] for v in item.get("videos", [])] for item in json.load(f)}
-        print(f"✅ Loaded pexels metadata from {PEXELS_PATH}")
+        print(f"✅ Loaded pexels metadata")
     except Exception as e:
-        print(f"⚠️  Could not load pexels metadata: {e}")
+        print(f"⚠️  Could not load pexels: {e}")
         pexels_data = {}
 
     os.makedirs("output/final_videos", exist_ok=True)
     final_metadata = []
+    assembled_count = 0
 
     for s in scripts:
         sid = str(s["id"])
@@ -137,6 +138,8 @@ def main():
 
         output_path = f"output/final_videos/spark_of_ai_{s['id']}.mp4"
         assembled = assemble_with_ffmpeg(manifest, output_path)
+        if assembled:
+            assembled_count += 1
 
         final_metadata.append({
             "id": s["id"],
@@ -149,7 +152,7 @@ def main():
 
     with open("output/final_videos/final_metadata.json", "w") as f:
         json.dump(final_metadata, f, indent=2)
-    print(f"✅ Final edit manifests saved. {sum(1 for m in final_metadata if m['status'] == 'assembled')} videos assembled.")
+    print(f"\n✅ Done. {assembled_count}/{len(scripts)} videos assembled.")
 
 if __name__ == "__main__":
     main()
