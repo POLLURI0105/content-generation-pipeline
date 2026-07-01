@@ -265,47 +265,10 @@ jobs:
           python-version: '3.11'
       - name: Install dependencies
         run: pip install requests python-dotenv moviepy
-      - name: Download scripts artifact
-        uses: actions/download-artifact@v3
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
         with:
-          name: generated-scripts
-          path: output/
-
-      - name: Download voice artifact
-        uses: actions/download-artifact@v3
-        with:
-          name: generated-voice
-          path: output/
-
-      - name: Download video clips artifact
-        uses: actions/download-artifact@v3
-        with:
-          name: generated-videos
-          path: output/
-
-      - name: Download images artifact
-        uses: actions/download-artifact@v3
-        with:
-          name: generated-images
-          path: output/
-
-      - name: Download stock footage artifact
-        uses: actions/download-artifact@v3
-        with:
-          name: stock-footage
-          path: output/
-
-      - name: Download SFX and captions artifact
-        uses: actions/download-artifact@v3
-        with:
-          name: sfx-captions
-          path: output/
-
-      - name: Download thumbnails artifact
-        uses: actions/download-artifact@v3
-        with:
-          name: thumbnails
-          path: output/
+          path: artifacts/
       - name: Assemble final video
         env:
           CAPCUT_API_KEY: ${{ secrets.CAPCUT_API_KEY }}
