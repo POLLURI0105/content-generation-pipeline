@@ -81,7 +81,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: generated-voice
-          path: output/voice_metadata.json
+          path: output/
 
   generate-video-clips:
     name: Generate Video Clips (Kling 3.0 + Veo 3.1)
@@ -114,7 +114,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: generated-videos
-          path: output/kling_videos_metadata.json
+          path: output/
 
   generate-images:
     name: Generate Images (Ideogram 3.0 + Midjourney v7)
@@ -147,7 +147,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: generated-images
-          path: output/ideogram_images_metadata.json
+          path: output/
 
   fetch-stock-footage:
     name: Fetch Stock B-rolls (Pexels + Pixabay)
@@ -180,7 +180,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: stock-footage
-          path: output/pexels_metadata.json
+          path: output/
 
   generate-sfx-captions:
     name: Generate SFX & Captions
@@ -218,7 +218,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: sfx-captions
-          path: output/elevenlabs_sfx_metadata.json
+          path: output/
 
   generate-thumbnails:
     name: Generate Thumbnails
@@ -251,7 +251,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: thumbnails
-          path: output/ideogram_thumbnails_metadata.json
+          path: output/
 
   final-editing:
     name: Final Editing with CapCut
@@ -265,10 +265,47 @@ jobs:
           python-version: '3.11'
       - name: Install dependencies
         run: pip install requests python-dotenv moviepy
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
+      - name: Download scripts artifact
+        uses: actions/download-artifact@v3
         with:
-          path: artifacts/
+          name: generated-scripts
+          path: output/
+
+      - name: Download voice artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: generated-voice
+          path: output/
+
+      - name: Download video clips artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: generated-videos
+          path: output/
+
+      - name: Download images artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: generated-images
+          path: output/
+
+      - name: Download stock footage artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: stock-footage
+          path: output/
+
+      - name: Download SFX and captions artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: sfx-captions
+          path: output/
+
+      - name: Download thumbnails artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: thumbnails
+          path: output/
       - name: Assemble final video
         env:
           CAPCUT_API_KEY: ${{ secrets.CAPCUT_API_KEY }}
