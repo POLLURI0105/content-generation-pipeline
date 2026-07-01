@@ -314,7 +314,7 @@ jobs:
           receiver_email = os.getenv('APPROVAL_EMAIL')
           run_url = f\"{os.getenv('GITHUB_SERVER_URL')}/{os.getenv('GITHUB_REPOSITORY')}/actions/runs/{os.getenv('GITHUB_RUN_ID')}\"
 
-          subject = 'ð¬ Spark of AI Pipeline - Approval Required'
+          subject = 'Spark of AI Pipeline - Approval Required'
           body = f'<html><body><h2>Content ready for deployment!</h2><p><a href=\"{run_url}\">Review and Approve here</a></p></body></html>'
 
           try:
