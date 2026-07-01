@@ -1,14 +1,36 @@
 import os
 import json
 
-# Paths in output/ — each artifact downloaded individually to output/ in the final-editing job
-SCRIPTS_PATH     = "output/scripts.json"
-VOICE_PATH       = "output/voice_metadata.json"
-VIDEO_PATH       = "output/kling_videos_metadata.json"
-SFX_PATH         = "output/elevenlabs_sfx_metadata.json"
-CAPTIONS_PATH    = "output/captions_metadata.json"
-THUMBNAILS_PATH  = "output/ideogram_thumbnails_metadata.json"
-PEXELS_PATH      = "output/pexels_metadata.json"
+# With @v4 bulk download to artifacts/, each artifact is in artifacts/<name>/
+# The upload was from output/, so files are at artifacts/<name>/<relative-to-output>
+SCRIPTS_PATH     = "artifacts/generated-scripts/scripts.json"
+VOICE_PATH       = "artifacts/generated-voice/voice_metadata.json"
+VIDEO_PATH       = "artifacts/generated-videos/kling_videos_metadata.json"
+SFX_PATH         = "artifacts/sfx-captions/elevenlabs_sfx_metadata.json"
+CAPTIONS_PATH    = "artifacts/sfx-captions/captions_metadata.json"
+THUMBNAILS_PATH  = "artifacts/thumbnails/ideogram_thumbnails_metadata.json"
+PEXELS_PATH      = "artifacts/stock-footage/pexels_metadata.json"
+
+def find_file(original_path):
+    """
+    Media files are saved by generators as output/X/filename.
+    After uploading output/ as an artifact and @v4 bulk downloading to artifacts/,
+    the file lives at artifacts/<artifact-name>/X/filename.
+    We search artifacts/ for the file if it's not at the original path.
+    """
+    if not original_path:
+        return None
+    if os.path.exists(original_path):
+        return original_path
+    # Strip output/ prefix and search across artifact directories
+    if original_path.startswith("output/"):
+        rel = original_path[len("output/"):]
+        if os.path.exists("artifacts"):
+            for artifact_dir in os.listdir("artifacts"):
+                candidate = os.path.join("artifacts", artifact_dir, rel)
+                if os.path.exists(candidate):
+                    return candidate
+    return None  # File genuinely not found
 
 def build_edit_manifest(script_id, title, voice_file, video_file, broll_files, sfx_file, caption_file, thumbnail_file):
     return {
@@ -17,29 +39,15 @@ def build_edit_manifest(script_id, title, voice_file, video_file, broll_files, s
         "aspect_ratio": "9:16",
         "resolution": "1080x1920",
         "tracks": {
-            "video": {
-                "primary": video_file,
-                "broll": broll_files,
-                "transition": "cut"
-            },
-            "audio": {
-                "voiceover": voice_file,
-                "sfx": sfx_file,
-                "music": None
-            },
+            "video": {"primary": video_file, "broll": broll_files, "transition": "cut"},
+            "audio": {"voiceover": voice_file, "sfx": sfx_file, "music": None},
             "captions": caption_file,
             "thumbnail": thumbnail_file
         },
-        "export_settings": {
-            "format": "mp4",
-            "quality": "1080p",
-            "fps": 30,
-            "bitrate": "8000k"
-        }
+        "export_settings": {"format": "mp4", "quality": "1080p", "fps": 30, "bitrate": "8000k"}
     }
 
 def assemble_with_ffmpeg(manifest, output_path):
-    """Use ffmpeg to assemble video from voice + video clip."""
     import subprocess
 
     voice = manifest["tracks"]["audio"]["voiceover"]
@@ -49,38 +57,26 @@ def assemble_with_ffmpeg(manifest, output_path):
         print(f"⚠️  Missing voice or video for {manifest['project_name']} — skipping")
         return None
 
-    if not os.path.exists(voice):
-        print(f"⚠️  Voice file not found: {voice} — skipping")
-        return None
-
-    if not os.path.exists(video):
-        print(f"⚠️  Video file not found: {video} — skipping")
-        return None
-
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
     cmd = [
         "ffmpeg", "-y",
-        "-i", video,
-        "-i", voice,
-        "-c:v", "libx264",
-        "-c:a", "aac",
-        "-shortest",
+        "-i", video, "-i", voice,
+        "-c:v", "libx264", "-c:a", "aac", "-shortest",
         "-vf", "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2",
         output_path
     ]
-
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode == 0:
-        print(f"✅ Video assembled: {output_path}")
+        print(f"✅ Assembled: {output_path}")
         return output_path
     else:
         print(f"❌ ffmpeg failed: {result.stderr[-300:]}")
         return None
 
 def main():
-    print("Files available in output/:")
-    for root, dirs, files in os.walk("output"):
+    print("=== Files in artifacts/ ===")
+    for root, dirs, files in os.walk("artifacts"):
         for fname in files:
             print(f"  {os.path.join(root, fname)}")
     print()
@@ -97,8 +93,14 @@ def main():
         try:
             with open(path) as f:
                 data = json.load(f)
-            result = {str(item.get("id")): item.get(key) for item in data}
-            print(f"✅ Loaded {path} ({len(result)} entries)")
+            result = {}
+            for item in data:
+                raw = item.get(key)
+                resolved = find_file(raw) if raw else None
+                result[str(item.get("id"))] = resolved
+                if raw and resolved != raw:
+                    print(f"  Remapped: {raw} → {resolved}")
+            print(f"✅ Loaded {path} ({len(result)} entries, {sum(1 for v in result.values() if v)} files found)")
             return result
         except Exception as e:
             print(f"⚠️  Could not load {path}: {e}")
@@ -112,7 +114,11 @@ def main():
 
     try:
         with open(PEXELS_PATH) as f:
-            pexels_data = {str(item["id"]): [v["file"] for v in item.get("videos", [])] for item in json.load(f)}
+            pexels_raw = json.load(f)
+        pexels_data = {}
+        for item in pexels_raw:
+            vids = [find_file(v["file"]) for v in item.get("videos", []) if v.get("file")]
+            pexels_data[str(item["id"])] = [v for v in vids if v]
         print(f"✅ Loaded pexels metadata")
     except Exception as e:
         print(f"⚠️  Could not load pexels: {e}")
@@ -124,12 +130,14 @@ def main():
 
     for s in scripts:
         sid = str(s["id"])
+        voice_file = voice_map.get(sid)
+        video_file = video_map.get(sid)
+
         manifest = build_edit_manifest(
             s["id"], s["title"],
-            voice_map.get(sid), video_map.get(sid),
+            voice_file, video_file,
             pexels_data.get(sid, []),
-            sfx_map.get(sid), caption_map.get(sid),
-            thumb_map.get(sid)
+            sfx_map.get(sid), caption_map.get(sid), thumb_map.get(sid)
         )
 
         manifest_file = f"output/final_videos/manifest_script_{s['id']}.json"
